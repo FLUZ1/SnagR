@@ -438,7 +438,7 @@
     <footer class="bg-white dark:bg-gray-800 shadow-inner py-6 text-center">
         <div class="container mx-auto">
             <p class="text-gray-600 mb-4">Para atualizar os dados, selecione o arquivo <code class="bg-gray-200 p-1 rounded">.jsonl</code>.</p>
-            <input type="file" id="json-file-input" accept=".jsonl,.txt,.json,.jasonl" style="display: none;" />
+            <input type="file" id="json-file-input" accept=".jsonl,.txt,.json" style="display: none;" />
             <button class="bg-[--cor-primaria] hover:bg-blue-900 text-white font-bold py-2 px-4 rounded" onclick="document.getElementById('json-file-input').click()">Carregar Arquivo</button>
             <p id="file-name" style="margin-top: 10px; font-size: 14px; color: #555;"></p>
         </div>
@@ -560,8 +560,7 @@
         };
         
         /**
-         * (NOVA FUNÇÃO) Processa o conteúdo de texto de um arquivo.
-         * Esta função é chamada tanto pelo upload manual (processFile) quanto pelo carregamento automático (loadDefaultFile).
+         * Processa o conteúdo de texto de um arquivo.
          */
         const processContent = async (content, fileName) => {
             const loadingContainer = document.getElementById('loading-container');
@@ -572,8 +571,8 @@
                 statusText.textContent = 'Leitura concluída. Processando dados...';
                 progressBar.style.width = '50%';
                 
-                // Adicionamos 'jasonl' para carregar seu arquivo
-                let rawData = (fileName.endsWith('.jsonl') || fileName.endsWith('.jasonl'))
+                // *** MUDANÇA 2: Simplificada a lógica de parsing ***
+                let rawData = (fileName.endsWith('.jsonl'))
                     ? content.split('\n').filter(Boolean).map(line => JSON.parse(line.replace(/:\s*NaN/g, ': null')))
                     : JSON.parse(content.replace(/:\s*NaN/g, ': null'));
 
@@ -605,15 +604,14 @@
         };
 
         /**
-         * (FUNÇÃO MODIFICADA) Processa um arquivo carregado pelo usuário.
-         * Agora ela apenas lê o arquivo e passa o conteúdo para 'processContent'.
+         * Processa um arquivo carregado pelo usuário.
          */
         const processFile = async (file) => {
             if (!file) return;
 
-            // Adicionamos 'jasonl' à verificação
-            if (!file.name.endsWith('.jsonl') && !file.name.endsWith('.txt') && !file.name.endsWith('.json') && !file.name.endsWith('.jasonl')) {
-                showError('Por favor, carregue um arquivo válido (.jsonl, .json, .jasonl ou .txt).');
+            // *** MUDANÇA 3: Simplificada a validação de arquivo ***
+            if (!file.name.endsWith('.jsonl') && !file.name.endsWith('.txt') && !file.name.endsWith('.json')) {
+                showError('Por favor, carregue um arquivo válido (.jsonl, .json ou .txt).');
                 return;
             }
 
@@ -642,7 +640,6 @@
             };
 
             reader.onload = async (e) => {
-                // Chama a nova função de processamento
                 await processContent(e.target.result, file.name);
             };
 
@@ -655,20 +652,18 @@
         };
 
         /**
-         * (NOVA FUNÇÃO) Carrega o arquivo padrão do repositório via fetch.
+         * Carrega o arquivo padrão do repositório via fetch.
          */
         const loadDefaultFile = async (url) => {
             const loadingContainer = document.getElementById('loading-container');
             const statusText = document.getElementById('loading-status');
             const progressBar = document.getElementById('progress-bar');
 
-            // Mostra a UI de carregamento
             ['initial-message', 'dashboard-content', 'error-message'].forEach(id => document.getElementById(id).style.display = 'none');
             statusText.textContent = `Carregando arquivo padrão (${url})...`;
             progressBar.style.width = '10%'; 
             loadingContainer.style.display = 'block';
             
-            // Limpa gráficos da aba localização
             if (locationRankingChart) locationRankingChart.destroy();
             if (locationCategoryHeatmap) locationCategoryHeatmap.destroy();
             if (groupingVolumeChart) groupingVolumeChart.destroy();
@@ -684,14 +679,11 @@
 
                 const content = await response.text();
                 
-                // Chama a mesma função de processamento
                 await processContent(content, url);
 
             } catch (err) {
-                // Erro não-bloqueante. O usuário ainda pode carregar um arquivo.
                 console.error(`Falha ao carregar arquivo padrão: ${err.message}`);
                 loadingContainer.style.display = 'none';
-                // Mostra a mensagem inicial de "arraste e solte"
                 document.getElementById('initial-message').style.display = 'block';
                 document.getElementById('file-name').textContent = `Arquivo padrão (${url}) não encontrado. Carregue um arquivo manual.`;
             }
@@ -754,7 +746,6 @@
             updateHeatmapChart(uniqueBaseFilteredData);
             updateMonthlyResolutionRateChart(uniqueBaseFilteredData);
             
-            // O gráfico de histórico de status agora usa os filtros de ano e mês selecionados.
             updateStatusHistoryChart(getUniqueRecords(allData), selectedYear, selectedMonth);
 
             updateResolutionScatterChart(finalFilteredData);
@@ -859,7 +850,6 @@
             monthlyResolutionRateChart = new Chart(ctx, { type: 'line', data: { labels: months, datasets: [{ label: 'Taxa de Resolução', data: resolutionRates, backgroundColor: 'rgba(159, 196, 25, 0.2)', borderColor: 'rgba(159, 196, 25, 1)', borderWidth: 2, fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: (value) => `${value}%` } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ` Taxa: ${context.raw.toFixed(2)}%` } } } } });
         };
         
-        /** Atualiza o gráfico de barras de histórico de status (Criados vs. Resolvidos). */
         const updateStatusHistoryChart = (data, selectedYear, selectedMonth) => {
             const ctx = document.getElementById('statusHistoryChart').getContext('2d');
             const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -873,7 +863,6 @@
                     const recordDate = new Date(item.data);
                     if (isNaN(recordDate.getTime()) || recordDate > today) return;
 
-                    // Aplica os filtros de ano e mês
                     if (selectedYear !== 'all' && recordDate.getFullYear() != selectedYear) return;
                     if (selectedMonth !== 'all' && recordDate.getMonth() != selectedMonth) return;
                     
@@ -889,7 +878,6 @@
                     const resolvedDate = new Date(item.lastChangedDate);
                     if (isNaN(resolvedDate.getTime()) || resolvedDate > today) return;
 
-                    // Aplica os filtros de ano e mês
                     if (selectedYear !== 'all' && resolvedDate.getFullYear() != selectedYear) return;
                     if (selectedMonth !== 'all' && resolvedDate.getMonth() != selectedMonth) return;
 
@@ -1352,8 +1340,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // ### MODIFICAÇÃO CHAVE: Tenta carregar o arquivo padrão ao iniciar ###
-            loadDefaultFile('PG44.jasonl');
+            // *** MUDANÇA 4: Apontando para o arquivo .jsonl correto com caminho relativo ./ ***
+            loadDefaultFile('./PG44.jsonl');
             // #####################################################################
 
             const filterIds = [
