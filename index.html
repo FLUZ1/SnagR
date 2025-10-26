@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
     <style>
         :root {
             --cor-primaria: #01455C;
@@ -571,7 +574,6 @@
                 statusText.textContent = 'Leitura concluída. Processando dados...';
                 progressBar.style.width = '50%';
                 
-                // *** MUDANÇA 2: Simplificada a lógica de parsing ***
                 let rawData = (fileName.endsWith('.jsonl'))
                     ? content.split('\n').filter(Boolean).map(line => JSON.parse(line.replace(/:\s*NaN/g, ': null')))
                     : JSON.parse(content.replace(/:\s*NaN/g, ': null'));
@@ -609,7 +611,6 @@
         const processFile = async (file) => {
             if (!file) return;
 
-            // *** MUDANÇA 3: Simplificada a validação de arquivo ***
             if (!file.name.endsWith('.jsonl') && !file.name.endsWith('.txt') && !file.name.endsWith('.json')) {
                 showError('Por favor, carregue um arquivo válido (.jsonl, .json ou .txt).');
                 return;
@@ -652,15 +653,16 @@
         };
 
         /**
-         * Carrega o arquivo padrão do repositório via fetch.
+         * *** MUDANÇA 2: Função loadDefaultFile atualizada para usar JSZip ***
+         * Carrega, descompacta e processa o arquivo .zip padrão do Release.
          */
-        const loadDefaultFile = async (url) => {
+        const loadDefaultFile = async (zipUrl) => {
             const loadingContainer = document.getElementById('loading-container');
             const statusText = document.getElementById('loading-status');
             const progressBar = document.getElementById('progress-bar');
 
             ['initial-message', 'dashboard-content', 'error-message'].forEach(id => document.getElementById(id).style.display = 'none');
-            statusText.textContent = `Carregando arquivo padrão (${url})...`;
+            statusText.textContent = `Carregando arquivo zipado...`;
             progressBar.style.width = '10%'; 
             loadingContainer.style.display = 'block';
             
@@ -669,23 +671,43 @@
             if (groupingVolumeChart) groupingVolumeChart.destroy();
 
             try {
-                const response = await fetch(url);
+                // 1. Baixar o arquivo .zip como um ArrayBuffer
+                statusText.textContent = 'Baixando arquivo...';
+                const response = await fetch(zipUrl);
                 if (!response.ok) {
                     throw new Error(`Arquivo não encontrado (HTTP ${response.status})`);
                 }
-                
-                statusText.textContent = 'Arquivo padrão carregado. Processando...';
+                const zipData = await response.arrayBuffer();
                 progressBar.style.width = '25%';
 
-                const content = await response.text();
+                // 2. Carregar o .zip usando JSZip
+                statusText.textContent = 'Descompactando arquivo...';
+                const zip = await JSZip.loadAsync(zipData);
                 
-                await processContent(content, url);
+                // 3. Encontrar o arquivo .jsonl DENTRO do zip
+                // (Isso procura pelo *primeiro* arquivo que termina em .jsonl,
+                // não importa o nome da pasta ou se é maiúsculo/minúsculo)
+                const jsonlFile = zip.file(/.+\.jsonl$/i)[0];
+
+                if (!jsonlFile) {
+                    throw new Error("Não foi possível encontrar um arquivo .jsonl dentro do .zip baixado.");
+                }
+
+                const fileName = jsonlFile.name;
+                statusText.textContent = `Arquivo encontrado (${fileName}). Processando...`;
+                progressBar.style.width = '40%';
+
+                // 4. Extrair o conteúdo do arquivo como texto
+                const content = await jsonlFile.async("string");
+                
+                // 5. Enviar o conteúdo de texto para a função de processamento existente
+                await processContent(content, fileName); 
 
             } catch (err) {
                 console.error(`Falha ao carregar arquivo padrão: ${err.message}`);
                 loadingContainer.style.display = 'none';
                 document.getElementById('initial-message').style.display = 'block';
-                document.getElementById('file-name').textContent = `Arquivo padrão (${url}) não encontrado. Carregue um arquivo manual.`;
+                document.getElementById('file-name').textContent = `Falha ao carregar e descompactar ${zipUrl}. Carregue um arquivo manual.`;
             }
         };
 
@@ -1340,8 +1362,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // *** MUDANÇA 4: Apontando para o arquivo .jsonl correto com caminho relativo ./ ***
-            loadDefaultFile('./PG44.jsonl');
+            // *** MUDANÇA 3: Atualizado com o link do seu .zip ***
+            loadDefaultFile('https://github.com/FLUZ1/SnagR/archive/refs/tags/v1.zip');
             // #####################################################################
 
             const filterIds = [
