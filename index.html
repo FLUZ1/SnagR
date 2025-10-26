@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
-    
     <style>
         :root {
             --cor-primaria: #01455C;
@@ -572,9 +571,7 @@
                 statusText.textContent = 'Leitura concluída. Processando dados...';
                 progressBar.style.width = '50%';
                 
-                // Determina o nome real do arquivo para exibição (remove caminho se houver)
-                const displayFileName = fileName.includes('/') ? fileName.split('/').pop() : fileName;
-
+                // *** MUDANÇA 2: Simplificada a lógica de parsing ***
                 let rawData = (fileName.endsWith('.jsonl'))
                     ? content.split('\n').filter(Boolean).map(line => JSON.parse(line.replace(/:\s*NaN/g, ': null')))
                     : JSON.parse(content.replace(/:\s*NaN/g, ': null'));
@@ -592,7 +589,7 @@
                 }
 
                 statusText.textContent = 'Gerando gráficos...';
-                document.getElementById('file-name').textContent = `Arquivo: ${displayFileName}`;
+                document.getElementById('file-name').textContent = `Arquivo: ${fileName}`;
                 populateGlobalFilters();
                 populateHeatmapYearFilter(allData);
                 runUpdate();
@@ -612,6 +609,7 @@
         const processFile = async (file) => {
             if (!file) return;
 
+            // *** MUDANÇA 3: Simplificada a validação de arquivo ***
             if (!file.name.endsWith('.jsonl') && !file.name.endsWith('.txt') && !file.name.endsWith('.json')) {
                 showError('Por favor, carregue um arquivo válido (.jsonl, .json ou .txt).');
                 return;
@@ -654,16 +652,15 @@
         };
 
         /**
-         * *** MUDANÇA: Função loadDefaultFile SIMPLIFICADA para usar fetch direto no .jsonl ***
-         * Carrega o arquivo .jsonl padrão do Asset da Release.
+         * Carrega o arquivo padrão do repositório via fetch.
          */
-        const loadDefaultFile = async (jsonlUrl) => {
+        const loadDefaultFile = async (url) => {
             const loadingContainer = document.getElementById('loading-container');
             const statusText = document.getElementById('loading-status');
             const progressBar = document.getElementById('progress-bar');
 
             ['initial-message', 'dashboard-content', 'error-message'].forEach(id => document.getElementById(id).style.display = 'none');
-            statusText.textContent = `Carregando arquivo padrão...`;
+            statusText.textContent = `Carregando arquivo padrão (${url})...`;
             progressBar.style.width = '10%'; 
             loadingContainer.style.display = 'block';
             
@@ -672,33 +669,25 @@
             if (groupingVolumeChart) groupingVolumeChart.destroy();
 
             try {
-                // 1. Baixar o arquivo .jsonl como texto
-                statusText.textContent = 'Baixando arquivo...';
-                const response = await fetch(jsonlUrl);
+                const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`Arquivo não encontrado (HTTP ${response.status})`);
                 }
-                progressBar.style.width = '25%'; // Atualiza progresso após download
+                
+                statusText.textContent = 'Arquivo padrão carregado. Processando...';
+                progressBar.style.width = '25%';
 
-                // 2. Obter o conteúdo como texto
                 const content = await response.text();
                 
-                // 3. Extrair o nome do arquivo da URL para exibição
-                const fileName = jsonlUrl.split('/').pop(); 
-                statusText.textContent = `Arquivo baixado (${fileName}). Processando...`;
-                progressBar.style.width = '40%';
-
-                // 4. Enviar o conteúdo de texto para a função de processamento existente
-                await processContent(content, fileName); 
+                await processContent(content, url);
 
             } catch (err) {
                 console.error(`Falha ao carregar arquivo padrão: ${err.message}`);
                 loadingContainer.style.display = 'none';
                 document.getElementById('initial-message').style.display = 'block';
-                document.getElementById('file-name').textContent = `Falha ao carregar ${jsonlUrl}. Detalhe: ${err.message}. Carregue um arquivo manual.`; 
+                document.getElementById('file-name').textContent = `Arquivo padrão (${url}) não encontrado. Carregue um arquivo manual.`;
             }
         };
-
 
         const handleFileUpload = (event) => {
             const file = event.target.files[0];
@@ -1351,8 +1340,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // *** Chamada atualizada com o link CORRETO do Asset .jsonl da Release ***
-            loadDefaultFile('https://github.com/FLUZ1/SnagR/releases/download/v1/PG44.jsonl');
+            // *** MUDANÇA 4: Apontando para o arquivo .jsonl correto com caminho relativo ./ ***
+            loadDefaultFile('./PG44.jsonl');
             // #####################################################################
 
             const filterIds = [
