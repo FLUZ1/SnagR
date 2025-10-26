@@ -591,7 +591,8 @@
                 }
 
                 statusText.textContent = 'Gerando gráficos...';
-                document.getElementById('file-name').textContent = `Arquivo: ${fileName}`;
+                // Mostra o nome do arquivo jsonl de dentro do zip, se disponível
+                document.getElementById('file-name').textContent = `Arquivo: ${fileName.includes('/') ? fileName.split('/').pop() : fileName}`;
                 populateGlobalFilters();
                 populateHeatmapYearFilter(allData);
                 runUpdate();
@@ -653,8 +654,7 @@
         };
 
         /**
-         * *** MUDANÇA 2: Função loadDefaultFile atualizada para procurar dentro da pasta do zip ***
-         * Carrega, descompacta (considerando a pasta raiz do GitHub) e processa o arquivo .zip do código-fonte.
+         * Carrega, descompacta (considerando a pasta raiz, se houver) e processa o arquivo .zip padrão do Asset da Release.
          */
         const loadDefaultFile = async (zipUrl) => {
             const loadingContainer = document.getElementById('loading-container');
@@ -684,21 +684,22 @@
                 statusText.textContent = 'Descompactando arquivo...';
                 const zip = await JSZip.loadAsync(zipData);
                 
-                // 3. Procurar pelo arquivo .jsonl DENTRO da pasta raiz criada pelo GitHub.
-                //    O regex procura por "qualquer_nome_de_pasta/PG44.jsonl".
-                let jsonlFile = zip.file(/^[^\/]+\/PG44\.jsonl$/i)[0]; // Procura dentro da pasta raiz
+                // 3. Procurar pelo arquivo PG44.jsonl DENTRO do zip.
+                //    Primeiro tenta encontrar dentro de uma pasta raiz (caso o zip seja do /archive/)
+                //    Depois tenta encontrar diretamente na raiz (caso seja um zip do /releases/download/)
+                let jsonlFile = zip.file(/^[^\/]+\/PG44\.jsonl$/i)[0]; // Procura dentro de UMA pasta raiz
 
                 if (!jsonlFile) {
-                    // Se não encontrar, tenta procurar na raiz (como segurança)
-                    const rootJsonlFile = zip.file(/^PG44\.jsonl$/i)[0];
-                    if (!rootJsonlFile) {
-                        throw new Error("Não foi possível encontrar 'PG44.jsonl' dentro do .zip baixado (nem na pasta raiz, nem no nível superior). Verifique o nome do arquivo e a estrutura do zip.");
-                    }
-                    jsonlFile = rootJsonlFile; // Usa o arquivo da raiz se encontrado
-                     console.warn("Arquivo PG44.jsonl encontrado na raiz do zip, não dentro de uma pasta. Verifique a estrutura do zip baixado.");
+                    // Se não encontrar na pasta raiz, procura diretamente na raiz do zip
+                    jsonlFile = zip.file(/^PG44\.jsonl$/i)[0]; 
+                }
+                
+                if (!jsonlFile) { // Se ainda assim não encontrar...
+                     throw new Error("Não foi possível encontrar 'PG44.jsonl' dentro do .zip baixado. Verifique o nome do arquivo e a estrutura interna do zip.");
                 }
 
-                const fileName = jsonlFile.name; // Pega o nome completo (ex: SnagR-v1/PG44.jsonl)
+
+                const fileName = jsonlFile.name; // Pega o nome completo (pode incluir pasta)
                 statusText.textContent = `Arquivo encontrado (${fileName}). Processando...`;
                 progressBar.style.width = '40%';
 
@@ -706,13 +707,14 @@
                 const content = await jsonlFile.async("string");
                 
                 // 5. Enviar o conteúdo de texto para a função de processamento existente
+                // Passa o nome do arquivo interno para exibição correta
                 await processContent(content, fileName); 
 
             } catch (err) {
                 console.error(`Falha ao carregar arquivo padrão: ${err.message}`);
                 loadingContainer.style.display = 'none';
                 document.getElementById('initial-message').style.display = 'block';
-                document.getElementById('file-name').textContent = `Falha ao carregar e descompactar ${zipUrl}. Detalhe: ${err.message}. Carregue um arquivo manual.`; // Adiciona a msg de erro
+                document.getElementById('file-name').textContent = `Falha ao carregar e descompactar ${zipUrl}. Detalhe: ${err.message}. Carregue um arquivo manual.`; 
             }
         };
 
@@ -1368,8 +1370,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // *** MUDANÇA 3: Chamada atualizada com o link do zip ***
-            loadDefaultFile('https://github.com/FLUZ1/SnagR/archive/refs/tags/v1.zip');
+            // *** Chamada atualizada com o link CORRETO do Asset da Release ***
+            loadDefaultFile('https://github.com/FLUZ1/SnagR/releases/download/v1/PG44.zip');
             // #####################################################################
 
             const filterIds = [
